@@ -84,8 +84,8 @@ def calculate_time_durations(df):
     
     return df
 
-def create_daily_summary_with_durations(df, tab_name):
-    """Create daily summary with time duration analysis"""
+def create_main_summary(df, tab_name):
+    """Create main summary table with totals and percentages"""
     if not df.empty:
         # Extract date and time components
         df['Picked Date'] = df['Picked on'].dt.date
@@ -99,7 +99,7 @@ def create_daily_summary_with_durations(df, tab_name):
         all_dates = pd.date_range(start=september_start, end=october_end, freq='D')
         
         # Group by date and calculate metrics
-        daily_summary = []
+        main_summary = []
         
         for single_date in all_dates:
             date_str = single_date.strftime('%m-%d')
@@ -121,7 +121,7 @@ def create_daily_summary_with_durations(df, tab_name):
                 (day_data['Picked Hour'] >= 12)
             ])
             
-            # Time duration buckets with new hourly breakdown
+            # Time duration buckets for all orders
             time_buckets = day_data['delivery_time_bucket'].value_counts()
             hrs_0_1 = time_buckets.get('0-1Hrs', 0)
             hrs_1_2 = time_buckets.get('1-2Hrs', 0)
@@ -144,7 +144,7 @@ def create_daily_summary_with_durations(df, tab_name):
             morning_pct = round((morning_shift / total * 100) if total > 0 else 0, 0)
             afternoon_pct = round((afternoon_slot / total * 100) if total > 0 else 0, 0)
             
-            daily_summary.append({
+            main_summary.append({
                 tab_name: date_str,
                 'Total': total,
                 'Morning shift': morning_shift,
@@ -167,26 +167,26 @@ def create_daily_summary_with_durations(df, tab_name):
                 'Avg Hrs': round(avg_delivery_time, 1) if not np.isnan(avg_delivery_time) else 0
             })
         
-        # Calculate totals
-        if daily_summary:
-            total_orders = sum(item['Total'] for item in daily_summary)
-            total_morning = sum(item['Morning shift'] for item in daily_summary)
-            total_afternoon = sum(item['Afternoon Slot'] for item in daily_summary)
+        # Calculate totals for main summary
+        if main_summary:
+            total_orders = sum(item['Total'] for item in main_summary)
+            total_morning = sum(item['Morning shift'] for item in main_summary)
+            total_afternoon = sum(item['Afternoon Slot'] for item in main_summary)
             
             # Calculate totals for time buckets
-            total_0_1 = sum(item['0-1Hrs'] for item in daily_summary)
-            total_1_2 = sum(item['1-2Hrs'] for item in daily_summary)
-            total_2_3 = sum(item['2-3Hrs'] for item in daily_summary)
-            total_3_4 = sum(item['3-4Hrs'] for item in daily_summary)
-            total_4_5 = sum(item['4-5Hrs'] for item in daily_summary)
-            total_5_6 = sum(item['5-6Hrs'] for item in daily_summary)
-            total_6_7 = sum(item['6-7Hrs'] for item in daily_summary)
-            total_7_8 = sum(item['7-8Hrs'] for item in daily_summary)
-            total_8_9 = sum(item['8-9Hrs'] for item in daily_summary)
-            total_9_10 = sum(item['9-10Hrs'] for item in daily_summary)
-            total_10_11 = sum(item['10-11Hrs'] for item in daily_summary)
-            total_11_12 = sum(item['11-12Hrs'] for item in daily_summary)
-            total_12_plus = sum(item['12+Hrs'] for item in daily_summary)
+            total_0_1 = sum(item['0-1Hrs'] for item in main_summary)
+            total_1_2 = sum(item['1-2Hrs'] for item in main_summary)
+            total_2_3 = sum(item['2-3Hrs'] for item in main_summary)
+            total_3_4 = sum(item['3-4Hrs'] for item in main_summary)
+            total_4_5 = sum(item['4-5Hrs'] for item in main_summary)
+            total_5_6 = sum(item['5-6Hrs'] for item in main_summary)
+            total_6_7 = sum(item['6-7Hrs'] for item in main_summary)
+            total_7_8 = sum(item['7-8Hrs'] for item in main_summary)
+            total_8_9 = sum(item['8-9Hrs'] for item in main_summary)
+            total_9_10 = sum(item['9-10Hrs'] for item in main_summary)
+            total_10_11 = sum(item['10-11Hrs'] for item in main_summary)
+            total_11_12 = sum(item['11-12Hrs'] for item in main_summary)
+            total_12_plus = sum(item['12+Hrs'] for item in main_summary)
             
             # Calculate overall average
             all_delivery_times = df['delivery_duration_hrs'].dropna()
@@ -215,7 +215,125 @@ def create_daily_summary_with_durations(df, tab_name):
                 'Avg Hrs': overall_avg
             }
             
-            return daily_summary, total_summary
+            return main_summary, total_summary
+        else:
+            return [], {}
+    else:
+        return [], {}
+
+def create_shift_summary(df, shift_type, tab_name):
+    """Create summary table for specific shift (Morning or Afternoon)"""
+    if not df.empty:
+        # Extract date and time components
+        df['Picked Date'] = df['Picked on'].dt.date
+        df['Picked Hour'] = df['Picked on'].dt.hour
+        
+        # Filter by shift type
+        if shift_type == 'Morning':
+            shift_df = df[(df['Picked Hour'] >= 0) & (df['Picked Hour'] < 12)]
+        else:  # Afternoon
+            shift_df = df[(df['Picked Hour'] >= 12)]
+        
+        # Generate all dates from September 20th to October 10th
+        current_year = int(df['Picked on'].dt.year.max())
+        september_start = pd.Timestamp(f'{current_year}-09-20')
+        october_end = pd.Timestamp(f'{current_year}-10-10')
+        
+        all_dates = pd.date_range(start=september_start, end=october_end, freq='D')
+        
+        # Group by date and calculate metrics
+        shift_summary = []
+        
+        for single_date in all_dates:
+            date_str = single_date.strftime('%m-%d')
+            day_data = shift_df[shift_df['Picked Date'] == single_date.date()]
+            total = len(day_data)
+            
+            if total == 0:
+                # Skip dates with no data
+                continue
+            
+            # Time duration buckets
+            time_buckets = day_data['delivery_time_bucket'].value_counts()
+            hrs_0_1 = time_buckets.get('0-1Hrs', 0)
+            hrs_1_2 = time_buckets.get('1-2Hrs', 0)
+            hrs_2_3 = time_buckets.get('2-3Hrs', 0)
+            hrs_3_4 = time_buckets.get('3-4Hrs', 0)
+            hrs_4_5 = time_buckets.get('4-5Hrs', 0)
+            hrs_5_6 = time_buckets.get('5-6Hrs', 0)
+            hrs_6_7 = time_buckets.get('6-7Hrs', 0)
+            hrs_7_8 = time_buckets.get('7-8Hrs', 0)
+            hrs_8_9 = time_buckets.get('8-9Hrs', 0)
+            hrs_9_10 = time_buckets.get('9-10Hrs', 0)
+            hrs_10_11 = time_buckets.get('10-11Hrs', 0)
+            hrs_11_12 = time_buckets.get('11-12Hrs', 0)
+            hrs_12_plus = time_buckets.get('12+Hrs', 0)
+            
+            # Calculate average delivery time
+            avg_delivery_time = day_data['delivery_duration_hrs'].mean()
+            
+            shift_summary.append({
+                tab_name: date_str,
+                'Total': total,
+                '0-1Hrs': hrs_0_1,
+                '1-2Hrs': hrs_1_2,
+                '2-3Hrs': hrs_2_3,
+                '3-4Hrs': hrs_3_4,
+                '4-5Hrs': hrs_4_5,
+                '5-6Hrs': hrs_5_6,
+                '6-7Hrs': hrs_6_7,
+                '7-8Hrs': hrs_7_8,
+                '8-9Hrs': hrs_8_9,
+                '9-10Hrs': hrs_9_10,
+                '10-11Hrs': hrs_10_11,
+                '11-12Hrs': hrs_11_12,
+                '12+Hrs': hrs_12_plus,
+                'Avg Hrs': round(avg_delivery_time, 1) if not np.isnan(avg_delivery_time) else 0
+            })
+        
+        # Calculate totals for shift summary
+        if shift_summary:
+            total_orders = sum(item['Total'] for item in shift_summary)
+            
+            # Calculate totals for time buckets
+            total_0_1 = sum(item['0-1Hrs'] for item in shift_summary)
+            total_1_2 = sum(item['1-2Hrs'] for item in shift_summary)
+            total_2_3 = sum(item['2-3Hrs'] for item in shift_summary)
+            total_3_4 = sum(item['3-4Hrs'] for item in shift_summary)
+            total_4_5 = sum(item['4-5Hrs'] for item in shift_summary)
+            total_5_6 = sum(item['5-6Hrs'] for item in shift_summary)
+            total_6_7 = sum(item['6-7Hrs'] for item in shift_summary)
+            total_7_8 = sum(item['7-8Hrs'] for item in shift_summary)
+            total_8_9 = sum(item['8-9Hrs'] for item in shift_summary)
+            total_9_10 = sum(item['9-10Hrs'] for item in shift_summary)
+            total_10_11 = sum(item['10-11Hrs'] for item in shift_summary)
+            total_11_12 = sum(item['11-12Hrs'] for item in shift_summary)
+            total_12_plus = sum(item['12+Hrs'] for item in shift_summary)
+            
+            # Calculate overall average for this shift
+            shift_delivery_times = shift_df['delivery_duration_hrs'].dropna()
+            overall_avg = round(shift_delivery_times.mean(), 1) if len(shift_delivery_times) > 0 else 0
+            
+            total_summary = {
+                tab_name: 'TOTAL',
+                'Total': total_orders,
+                '0-1Hrs': total_0_1,
+                '1-2Hrs': total_1_2,
+                '2-3Hrs': total_2_3,
+                '3-4Hrs': total_3_4,
+                '4-5Hrs': total_4_5,
+                '5-6Hrs': total_5_6,
+                '6-7Hrs': total_6_7,
+                '7-8Hrs': total_7_8,
+                '8-9Hrs': total_8_9,
+                '9-10Hrs': total_9_10,
+                '10-11Hrs': total_10_11,
+                '11-12Hrs': total_11_12,
+                '12+Hrs': total_12_plus,
+                'Avg Hrs': overall_avg
+            }
+            
+            return shift_summary, total_summary
         else:
             return [], {}
     else:
@@ -262,13 +380,35 @@ if uploaded_file is not None:
                     # Calculate time durations
                     dc_df = calculate_time_durations(dc_df)
                     
-                    # Create summary with durations
-                    daily_summary, total_summary = create_daily_summary_with_durations(dc_df, 'DC')
+                    # Create main summary
+                    st.subheader("DC Summary")
+                    main_summary, main_total = create_main_summary(dc_df, 'DC')
                     
-                    if daily_summary:
-                        # Display the Daily Summary table
-                        display_df = pd.DataFrame(daily_summary + [total_summary])
+                    if main_summary:
+                        # Display the Main Summary table
+                        display_df = pd.DataFrame(main_summary + [main_total])
                         st.dataframe(display_df, use_container_width=True)
+                        
+                        # Create two columns for shift summaries
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.subheader("Morning Shift Orders")
+                            morning_summary, morning_total = create_shift_summary(dc_df, 'Morning', 'DC')
+                            if morning_summary:
+                                morning_df = pd.DataFrame(morning_summary + [morning_total])
+                                st.dataframe(morning_df, use_container_width=True)
+                            else:
+                                st.info("No morning shift data available")
+                        
+                        with col2:
+                            st.subheader("Afternoon Slot Orders")
+                            afternoon_summary, afternoon_total = create_shift_summary(dc_df, 'Afternoon', 'DC')
+                            if afternoon_summary:
+                                afternoon_df = pd.DataFrame(afternoon_summary + [afternoon_total])
+                                st.dataframe(afternoon_df, use_container_width=True)
+                            else:
+                                st.info("No afternoon slot data available")
                     else:
                         st.warning("No data found for the date range!")
                     
@@ -304,13 +444,35 @@ if uploaded_file is not None:
                     # Calculate time durations
                     store_df = calculate_time_durations(store_df)
                     
-                    # Create summary with durations
-                    daily_summary, total_summary = create_daily_summary_with_durations(store_df, 'Store')
+                    # Create main summary
+                    st.subheader("Store Summary")
+                    main_summary, main_total = create_main_summary(store_df, 'Store')
                     
-                    if daily_summary:
-                        # Display the Daily Summary table
-                        display_df = pd.DataFrame(daily_summary + [total_summary])
+                    if main_summary:
+                        # Display the Main Summary table
+                        display_df = pd.DataFrame(main_summary + [main_total])
                         st.dataframe(display_df, use_container_width=True)
+                        
+                        # Create two columns for shift summaries
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.subheader("Morning Shift Orders")
+                            morning_summary, morning_total = create_shift_summary(store_df, 'Morning', 'Store')
+                            if morning_summary:
+                                morning_df = pd.DataFrame(morning_summary + [morning_total])
+                                st.dataframe(morning_df, use_container_width=True)
+                            else:
+                                st.info("No morning shift data available")
+                        
+                        with col2:
+                            st.subheader("Afternoon Slot Orders")
+                            afternoon_summary, afternoon_total = create_shift_summary(store_df, 'Afternoon', 'Store')
+                            if afternoon_summary:
+                                afternoon_df = pd.DataFrame(afternoon_summary + [afternoon_total])
+                                st.dataframe(afternoon_df, use_container_width=True)
+                            else:
+                                st.info("No afternoon slot data available")
                     else:
                         st.warning("No data found for the date range!")
                     
