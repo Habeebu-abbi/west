@@ -59,18 +59,27 @@ def calculate_time_durations(df):
         df.loc[mask, 'Delivered on'] - df.loc[mask, 'Picked on']
     ).dt.total_seconds() / 3600
     
-    # Categorize into time buckets
+    # Categorize into new time buckets (hourly up to 12 hours, then 12+)
     conditions = [
-        df['delivery_duration_hrs'] <= 2,
-        (df['delivery_duration_hrs'] > 2) & (df['delivery_duration_hrs'] <= 4),
-        (df['delivery_duration_hrs'] > 4) & (df['delivery_duration_hrs'] <= 6),
-        (df['delivery_duration_hrs'] > 6) & (df['delivery_duration_hrs'] <= 12),
-        (df['delivery_duration_hrs'] > 12) & (df['delivery_duration_hrs'] <= 24),
-        (df['delivery_duration_hrs'] > 24) & (df['delivery_duration_hrs'] <= 48),
-        df['delivery_duration_hrs'] > 48
+        df['delivery_duration_hrs'] <= 1,
+        (df['delivery_duration_hrs'] > 1) & (df['delivery_duration_hrs'] <= 2),
+        (df['delivery_duration_hrs'] > 2) & (df['delivery_duration_hrs'] <= 3),
+        (df['delivery_duration_hrs'] > 3) & (df['delivery_duration_hrs'] <= 4),
+        (df['delivery_duration_hrs'] > 4) & (df['delivery_duration_hrs'] <= 5),
+        (df['delivery_duration_hrs'] > 5) & (df['delivery_duration_hrs'] <= 6),
+        (df['delivery_duration_hrs'] > 6) & (df['delivery_duration_hrs'] <= 7),
+        (df['delivery_duration_hrs'] > 7) & (df['delivery_duration_hrs'] <= 8),
+        (df['delivery_duration_hrs'] > 8) & (df['delivery_duration_hrs'] <= 9),
+        (df['delivery_duration_hrs'] > 9) & (df['delivery_duration_hrs'] <= 10),
+        (df['delivery_duration_hrs'] > 10) & (df['delivery_duration_hrs'] <= 11),
+        (df['delivery_duration_hrs'] > 11) & (df['delivery_duration_hrs'] <= 12),
+        df['delivery_duration_hrs'] > 12
     ]
     
-    choices = ['0-2Hrs', '2-4Hrs', '4-6Hrs', '6-12Hrs', '12-24Hrs', '24-48Hrs', '48+Hrs']
+    choices = [
+        '0-1Hrs', '1-2Hrs', '2-3Hrs', '3-4Hrs', '4-5Hrs', '5-6Hrs',
+        '6-7Hrs', '7-8Hrs', '8-9Hrs', '9-10Hrs', '10-11Hrs', '11-12Hrs', '12+Hrs'
+    ]
     df['delivery_time_bucket'] = np.select(conditions, choices, default='Unknown')
     
     return df
@@ -82,16 +91,12 @@ def create_daily_summary_with_durations(df, tab_name):
         df['Picked Date'] = df['Picked on'].dt.date
         df['Picked Hour'] = df['Picked on'].dt.hour
         
-        # Generate all dates from October 1st to today
-        current_year = int(df['Picked on'].dt.year.max())  # Convert to integer
-        october_start = pd.Timestamp(f'{current_year}-10-01')
-        today = pd.Timestamp(date.today())
+        # Generate all dates from September 20th to October 10th
+        current_year = int(df['Picked on'].dt.year.max())
+        september_start = pd.Timestamp(f'{current_year}-09-20')
+        october_end = pd.Timestamp(f'{current_year}-10-10')
         
-        # If today is before October, adjust the year
-        if today.month < 10:
-            october_start = pd.Timestamp(f'{current_year-1}-10-01')
-        
-        all_dates = pd.date_range(start=october_start, end=today, freq='D')
+        all_dates = pd.date_range(start=september_start, end=october_end, freq='D')
         
         # Group by date and calculate metrics
         daily_summary = []
@@ -116,23 +121,28 @@ def create_daily_summary_with_durations(df, tab_name):
                 (day_data['Picked Hour'] >= 12)
             ])
             
-            # Time duration buckets
+            # Time duration buckets with new hourly breakdown
             time_buckets = day_data['delivery_time_bucket'].value_counts()
-            hrs_0_2 = time_buckets.get('0-2Hrs', 0)
-            hrs_2_4 = time_buckets.get('2-4Hrs', 0)
-            hrs_4_6 = time_buckets.get('4-6Hrs', 0)
-            hrs_6_12 = time_buckets.get('6-12Hrs', 0)
-            hrs_12_24 = time_buckets.get('12-24Hrs', 0)
-            hrs_24_48 = time_buckets.get('24-48Hrs', 0)
-            hrs_48_plus = time_buckets.get('48+Hrs', 0)
-            unknown = time_buckets.get('Unknown', 0)
+            hrs_0_1 = time_buckets.get('0-1Hrs', 0)
+            hrs_1_2 = time_buckets.get('1-2Hrs', 0)
+            hrs_2_3 = time_buckets.get('2-3Hrs', 0)
+            hrs_3_4 = time_buckets.get('3-4Hrs', 0)
+            hrs_4_5 = time_buckets.get('4-5Hrs', 0)
+            hrs_5_6 = time_buckets.get('5-6Hrs', 0)
+            hrs_6_7 = time_buckets.get('6-7Hrs', 0)
+            hrs_7_8 = time_buckets.get('7-8Hrs', 0)
+            hrs_8_9 = time_buckets.get('8-9Hrs', 0)
+            hrs_9_10 = time_buckets.get('9-10Hrs', 0)
+            hrs_10_11 = time_buckets.get('10-11Hrs', 0)
+            hrs_11_12 = time_buckets.get('11-12Hrs', 0)
+            hrs_12_plus = time_buckets.get('12+Hrs', 0)
             
             # Calculate average delivery time
             avg_delivery_time = day_data['delivery_duration_hrs'].mean()
             
             # Calculate percentages
             morning_pct = round((morning_shift / total * 100) if total > 0 else 0, 0)
-            evening_pct = round((afternoon_slot / total * 100) if total > 0 else 0, 0)
+            afternoon_pct = round((afternoon_slot / total * 100) if total > 0 else 0, 0)
             
             daily_summary.append({
                 tab_name: date_str,
@@ -140,15 +150,20 @@ def create_daily_summary_with_durations(df, tab_name):
                 'Morning shift': morning_shift,
                 'Afternoon Slot': afternoon_slot,
                 'Morning %': f"{int(morning_pct)}%",
-                'Evening %': f"{int(evening_pct)}%",
-                '0-2Hrs': hrs_0_2,
-                '2-4Hrs': hrs_2_4,
-                '4-6Hrs': hrs_4_6,
-                '6-12Hrs': hrs_6_12,
-                '12-24Hrs': hrs_12_24,
-                '24-48Hrs': hrs_24_48,
-                '48+Hrs': hrs_48_plus,
-                'Unknown': unknown,
+                'Afternoon %': f"{int(afternoon_pct)}%",
+                '0-1Hrs': hrs_0_1,
+                '1-2Hrs': hrs_1_2,
+                '2-3Hrs': hrs_2_3,
+                '3-4Hrs': hrs_3_4,
+                '4-5Hrs': hrs_4_5,
+                '5-6Hrs': hrs_5_6,
+                '6-7Hrs': hrs_6_7,
+                '7-8Hrs': hrs_7_8,
+                '8-9Hrs': hrs_8_9,
+                '9-10Hrs': hrs_9_10,
+                '10-11Hrs': hrs_10_11,
+                '11-12Hrs': hrs_11_12,
+                '12+Hrs': hrs_12_plus,
                 'Avg Hrs': round(avg_delivery_time, 1) if not np.isnan(avg_delivery_time) else 0
             })
         
@@ -159,14 +174,19 @@ def create_daily_summary_with_durations(df, tab_name):
             total_afternoon = sum(item['Afternoon Slot'] for item in daily_summary)
             
             # Calculate totals for time buckets
-            total_0_2 = sum(item['0-2Hrs'] for item in daily_summary)
-            total_2_4 = sum(item['2-4Hrs'] for item in daily_summary)
-            total_4_6 = sum(item['4-6Hrs'] for item in daily_summary)
-            total_6_12 = sum(item['6-12Hrs'] for item in daily_summary)
-            total_12_24 = sum(item['12-24Hrs'] for item in daily_summary)
-            total_24_48 = sum(item['24-48Hrs'] for item in daily_summary)
-            total_48_plus = sum(item['48+Hrs'] for item in daily_summary)
-            total_unknown = sum(item['Unknown'] for item in daily_summary)
+            total_0_1 = sum(item['0-1Hrs'] for item in daily_summary)
+            total_1_2 = sum(item['1-2Hrs'] for item in daily_summary)
+            total_2_3 = sum(item['2-3Hrs'] for item in daily_summary)
+            total_3_4 = sum(item['3-4Hrs'] for item in daily_summary)
+            total_4_5 = sum(item['4-5Hrs'] for item in daily_summary)
+            total_5_6 = sum(item['5-6Hrs'] for item in daily_summary)
+            total_6_7 = sum(item['6-7Hrs'] for item in daily_summary)
+            total_7_8 = sum(item['7-8Hrs'] for item in daily_summary)
+            total_8_9 = sum(item['8-9Hrs'] for item in daily_summary)
+            total_9_10 = sum(item['9-10Hrs'] for item in daily_summary)
+            total_10_11 = sum(item['10-11Hrs'] for item in daily_summary)
+            total_11_12 = sum(item['11-12Hrs'] for item in daily_summary)
+            total_12_plus = sum(item['12+Hrs'] for item in daily_summary)
             
             # Calculate overall average
             all_delivery_times = df['delivery_duration_hrs'].dropna()
@@ -178,15 +198,20 @@ def create_daily_summary_with_durations(df, tab_name):
                 'Morning shift': total_morning,
                 'Afternoon Slot': total_afternoon,
                 'Morning %': f"{int(round((total_morning / total_orders * 100) if total_orders > 0 else 0, 0))}%",
-                'Evening %': f"{int(round((total_afternoon / total_orders * 100) if total_orders > 0 else 0, 0))}%",
-                '0-2Hrs': total_0_2,
-                '2-4Hrs': total_2_4,
-                '4-6Hrs': total_4_6,
-                '6-12Hrs': total_6_12,
-                '12-24Hrs': total_12_24,
-                '24-48Hrs': total_24_48,
-                '48+Hrs': total_48_plus,
-                'Unknown': total_unknown,
+                'Afternoon %': f"{int(round((total_afternoon / total_orders * 100) if total_orders > 0 else 0, 0))}%",
+                '0-1Hrs': total_0_1,
+                '1-2Hrs': total_1_2,
+                '2-3Hrs': total_2_3,
+                '3-4Hrs': total_3_4,
+                '4-5Hrs': total_4_5,
+                '5-6Hrs': total_5_6,
+                '6-7Hrs': total_6_7,
+                '7-8Hrs': total_7_8,
+                '8-9Hrs': total_8_9,
+                '9-10Hrs': total_9_10,
+                '10-11Hrs': total_10_11,
+                '11-12Hrs': total_11_12,
+                '12+Hrs': total_12_plus,
                 'Avg Hrs': overall_avg
             }
             
@@ -221,20 +246,16 @@ if uploaded_file is not None:
             if 'Pickup Hub' in dc_df.columns:
                 dc_df = dc_df[dc_df['Pickup Hub'] == 'WD27']
             
-            # Set date range: October 1st to today
+            # Set date range: September 20th to October 10th
             if not dc_df.empty and not dc_df['Picked on'].isna().all():
-                # Filter for dates from October 1st to today
+                # Filter for dates from September 20th to October 10th
                 current_year = int(dc_df['Picked on'].dt.year.max())
-                october_start = pd.Timestamp(f'{current_year}-10-01')
-                today = pd.Timestamp(date.today())
-                
-                # If today is before October, adjust the year
-                if today.month < 10:
-                    october_start = pd.Timestamp(f'{current_year-1}-10-01')
+                september_start = pd.Timestamp(f'{current_year}-09-20')
+                october_end = pd.Timestamp(f'{current_year}-10-10')
                 
                 dc_df = dc_df[
-                    (dc_df['Picked on'] >= october_start) & 
-                    (dc_df['Picked on'] <= today + timedelta(days=1))
+                    (dc_df['Picked on'] >= september_start) & 
+                    (dc_df['Picked on'] <= october_end + timedelta(days=1))
                 ]
                 
                 if not dc_df.empty:
@@ -267,20 +288,16 @@ if uploaded_file is not None:
             if 'Pickup Hub' in store_df.columns:
                 store_df = store_df[store_df['Pickup Hub'] != 'WD27']
             
-            # Set date range: October 1st to today
+            # Set date range: September 20th to October 10th
             if not store_df.empty and not store_df['Picked on'].isna().all():
-                # Filter for dates from October 1st to today
+                # Filter for dates from September 20th to October 10th
                 current_year = int(store_df['Picked on'].dt.year.max())
-                october_start = pd.Timestamp(f'{current_year}-10-01')
-                today = pd.Timestamp(date.today())
-                
-                # If today is before October, adjust the year
-                if today.month < 10:
-                    october_start = pd.Timestamp(f'{current_year-1}-10-01')
+                september_start = pd.Timestamp(f'{current_year}-09-20')
+                october_end = pd.Timestamp(f'{current_year}-10-10')
                 
                 store_df = store_df[
-                    (store_df['Picked on'] >= october_start) & 
-                    (store_df['Picked on'] <= today + timedelta(days=1))
+                    (store_df['Picked on'] >= september_start) & 
+                    (store_df['Picked on'] <= october_end + timedelta(days=1))
                 ]
                 
                 if not store_df.empty:
